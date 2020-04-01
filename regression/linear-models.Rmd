@@ -309,6 +309,261 @@ y_hat <- predict(fit, se.fit = TRUE)
 names(y_hat)
 ```
 
+### LSE Assessment
+
+Q1
+
+```{r}
+beta1 = seq(0, 1, len=nrow(galton_heights))
+results <- data.frame(beta1 = beta1,
+                      rss = sapply(beta1, rss, beta0 = 36))
+results %>% ggplot(aes(beta1, rss)) + geom_line() + 
+  geom_line(aes(beta1, rss), col=2)
+```
+
+Q2
+
+Q3
+
+```{r}
+library(Lahman)
+Teams %>% filter(yearID %in% 1961:2001) %>%
+  mutate(HR_per_game = HR/G, 
+         BB_per_game = BB / G,
+         R_per_game = R / G) %>%
+  select(R_per_game, BB_per_game, HR_per_game) %>%
+  lm(R_per_game ~ BB_per_game+HR_per_game, data = .)
+```
+
+Why not? What exactly is the difference between the + and the : operators
+
+```{r}
+library(Lahman)
+Teams %>% filter(yearID %in% 1961:2001) %>%
+  mutate(HR_per_game = HR/G, 
+         BB_per_game = BB / G,
+         R_per_game = R / G) %>%
+  select(R_per_game, BB_per_game, HR_per_game) %>%
+  lm(R_per_game ~ BB_per_game:HR_per_game, data = .)
+```
+
+Q4
+
+Q5
+
+Earlier, we ran the following linear model and looked at a summary of the results. 
+
+```{r}
+fit <- lm(son ~ father, data = galton_heights)
+fit$coef
+```
+
+```{r}
+summary(fit)
+```
+
+Q: What null hypothesis is the second p-value (the one in the father row) testing?
+
+A: β1=0, where β1 is the coefficient for the variable "father." 
+
+Q6
+
+Which R code(s) below would properly plot the predictions and confidence intervals for our linear model of sons’ heights? Select ALL that apply.
+
+```{r}
+galton_heights %>% ggplot(aes(father, son)) +
+    geom_point() +
+    geom_smooth(method = "lm")
+```
+
+and
+
+```{r}
+model <- lm(son ~ father, data = galton_heights)
+predictions <- predict(model, interval = c("confidence"), level = 0.95)
+data <- as.tibble(predictions) %>% bind_cols(father = galton_heights$father)
+
+ggplot(data, aes(x = father, y = fit)) +
+    geom_line(color = "blue", size = 1) + 
+    geom_ribbon(aes(ymin=lwr, ymax=upr), alpha=0.2) + 
+    geom_point(data = galton_heights, aes(x = father, y = son))
+```
+
+-------
+Questions 7 and 8
+
+In Questions 7 and 8, you'll look again at female heights from GaltonFamilies.
+Define female_heights, a set of mother and daughter heights sampled from GaltonFamilies, as follows:
+
+```{r}
+set.seed(1989)
+library(HistData)
+data("GaltonFamilies")
+options(digits = 3) # report 3 significant digits
+
+female_heights <- GaltonFamilies %>%     
+    filter(gender == "female") %>%     
+    group_by(family) %>%     
+    sample_n(1) %>%     
+    ungroup() %>%     
+    select(mother, childHeight) %>%     
+    rename(daughter = childHeight)
+```
+
+Q7
+Fit a linear regression model predicting the mothers' heights using daughters' heights. 
+
+What is the slope of the model?
+What the intercept of the model?
+
+```{r}
+fit_female <- female_heights %>% lm(mother ~ daughter, data = .)
+
+print(fit_female)
+```
+
+Q8
+Predict mothers' heights using the model.
+What is the predicted height of the first mother in the dataset?
+What is the actual height of the first mother in the dataset?
+
+```{r}
+smry_fit_fml <- summary(fit_female)
+
+pred_fit_fml <- predict(fit_female)
+
+head(pred_fit_fml)
+
+head(female_heights)
+```
+
+Q9, Q10, Q11 and Q12
+
+We have shown how BB and singles have similar predictive power for scoring runs. Another way to compare the usefulness of these baseball metrics is by assessing how stable they are across the years. Because we have to pick players based on their previous performances, we will prefer metrics that are more stable. In these exercises, we will compare the stability of singles and BBs.
+
+Before we get started, we want to generate two tables: one for 2002 and another for the average of 1999-2001 seasons. We want to define per plate appearance statistics, keeping only players with more than 100 plate appearances. Here is how we create the 2002 table:
+
+```{r}
+library(Lahman)
+bat_02 <- Batting %>% filter(yearID == 2002) %>%
+    mutate(pa = AB + BB, singles = (H - X2B - X3B - HR)/pa, bb = BB/pa) %>%
+    filter(pa >= 100) %>%
+    select(playerID, singles, bb)
+
+bat_99_01 <- Batting %>% filter(yearID %in% 1999:2001) %>%
+    mutate(pa = AB + BB, singles = (H - X2B - X3B - HR)/pa, bb = BB/pa) %>%
+    filter(pa >= 100) %>%
+    select(playerID, singles, bb)
+```
+
+Q9
+
+Now compute a similar table but with rates computed over 1999-2001. Keep only rows from 1999-2001 where players have 100 or more plate appearances, calculate each player's single rate and BB rate per season, then calculate the average single rate (mean_singles) and average BB rate (mean_bb) per player over those three seasons.
+
+```{r}
+
+# each player's single rate and BB rate per season
+
+bat_rate_99_01 <- Batting %>% filter(yearID %in% 1999:2001) %>%
+    mutate(pa = AB + BB, singles = (H - X2B - X3B - HR)/pa, bb = BB/pa) %>%
+    filter(pa >= 100) %>%
+    group_by(yearID, playerID) %>%
+    summarise(singles_season = sum(singles), bb_season = sum(bb))
+```
+
+
+```{r}
+
+# the average single rate (mean_singles) and average BB rate (mean_bb) per player over those three seasons
+
+bat_rate_avg_ssn_99_01 <- Batting %>% filter(yearID %in% 1999:2001) %>%
+    mutate(pa = AB + BB, singles = (H - X2B - X3B - HR)/pa, bb = BB/pa) %>%
+    filter(pa >= 100) %>%
+    group_by(playerID) %>%
+    summarise(singles_mean = mean(singles), bb_mean = mean(bb))
+```
+
+How many players had a single rate mean_singles of greater than 0.2 per plate appearance over 1999-2001?
+
+```{r}
+bat_rate_avg_ssn_99_01 %>%
+    filter(singles_mean > 0.2) %>%
+    nrow()
+```
+
+
+How many players had a BB rate mean_bb of greater than 0.2 per plate appearance over 1999-2001?
+
+```{r}
+bat_rate_avg_ssn_99_01 %>%
+    filter(bb_mean > 0.2) %>%
+    nrow()
+```
+
+Q10
+
+Use inner_join() to combine the bat_02 table with the table of 1999-2001 rate averages you created in the previous question.
+
+```{r}
+bat_02_vs_99_01 <- inner_join(bat_02, bat_rate_avg_ssn_99_01, by = c("playerID" = "playerID"))
+```
+
+
+What is the correlation between 2002 singles rates and 1999-2001 average singles rates?
+
+```{r}
+bat_02_vs_99_01 %>%
+    summarise(r = cor(singles, singles_mean))
+```
+
+
+What is the correlation between 2002 BB rates and 1999-2001 average BB rates?
+
+```{r}
+bat_02_vs_99_01 %>%
+    summarise(r = cor(bb, bb_mean))
+```
+
+Q11
+
+Make scatterplots of mean_singles versus singles and mean_bb versus bb
+
+```{r}
+bat_02_vs_99_01 %>%
+    ggplot(aes(singles_mean, singles)) +
+    geom_point(alpha = 0.5) +
+    geom_abline(method = lm)
+```
+
+```{r}
+bat_02_vs_99_01 %>%
+    ggplot(aes(bb_mean, bb)) +
+    geom_point(alpha = 0.5) +
+    geom_abline(method = lm)
+```
+
+Q12
+
+Fit a linear model to predict 2002 singles given 1999-2001 mean_singles.
+
+What is the coefficient of mean_singles, the slope of the fit?
+
+```{r}
+bat_02_vs_99_01 %>% lm(singles ~ singles_mean, data = .)
+```
+
+
+```{r}
+bat_02_vs_99_01 %>% lm(bb ~ bb_mean, data = .)
+```
+
+
+
+Fit a linear model to predict 2002 bb given 1999-2001 mean_bb.
+
+What is the coefficient of mean_bb, the slope of the fit?
+
+
 ## Exercises
 
 
@@ -342,7 +597,7 @@ Compute the correlation between 2002 and the previous seasons for singles and BB
 4\. Now fit a linear model for each metric and use the `confint` function to compare the estimates.
 
 
-## Linear regression in the tidyverse
+## Linear regression in the tidyverse 
 
 To see how we use the `lm` function in a more complex analysis, let's go back to the baseball example. In a previous example, we estimated regression lines to predict runs for BB in different HR strata. We first constructed a data frame similar to this:
 
