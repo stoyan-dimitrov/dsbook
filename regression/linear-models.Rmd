@@ -309,7 +309,7 @@ y_hat <- predict(fit, se.fit = TRUE)
 names(y_hat)
 ```
 
-### LSE Assessment
+### Assessment: LSE
 
 Q1
 
@@ -729,6 +729,7 @@ dat %>%
   geom_point()
 ```
 
+
 Now we return to discussing our original task of determining if slopes changed. The plot we just made, using `do` and `tidy`, shows that the confidence intervals overlap, which provides a nice visual confirmation that our assumption that the slope does not change is safe.
 
 The other functions provided by __broom__, `glance`, and `augment`, relate to model-specific and observation-specific outcomes, respectively. Here, we can see the model fit summaries `glance` returns:
@@ -741,6 +742,171 @@ You can learn more about these summaries in any regression text book.
 
 We will see an example of `augment` in the next section.
 
+### Assessment: Linear regression in the tidyverse
+
+Q7
+
+You want to know whether the relationship between home runs and runs per game varies by baseball league. You create the following dataset:
+
+```{r}
+dat02 <- Teams %>% filter(yearID %in% 1961:2001) %>%
+  mutate(HR = HR/G,
+         R = R/G) %>%
+  select(lgID, HR, BB, R) 
+```
+
+
+What code would help you quickly answer this question?
+
+
+```{r}
+dat02 %>% 
+  group_by(lgID) %>% 
+  do(tidy(lm(R ~ HR, data = .), conf.int = T)) %>% 
+  filter(term == "HR") 
+```
+
+
+---
+We have investigated the relationship between fathers' heights and sons' heights. But what about other parent-child relationships? Does one parent's height have a stronger association with child height? How does the child's gender affect this relationship in heights? Are any differences that we observe statistically significant?
+
+The galton dataset is a sample of one male and one female child from each family in the GaltonFamilies dataset. The pair column denotes whether the pair is father and daughter, father and son, mother and daughter, or mother and son.
+
+Create the galton dataset using the code below:
+
+```{r}
+library(tidyverse)
+library(HistData)
+data("GaltonFamilies")
+set.seed(1) # if you are using R 3.5 or earlier
+galton <- GaltonFamilies %>%
+    group_by(family, gender) %>%
+    sample_n(1) %>%
+    ungroup() %>% 
+    gather(parent, parentHeight, father:mother) %>%
+    mutate(child = ifelse(gender == "female", "daughter", "son")) %>%
+    unite(pair, c("parent", "child"))
+
+galton
+```
+
+
+Q8
+
+Group by pair and summarize the number of observations in each group.
+
+How many father-daughter pairs are in the dataset?
+
+How many mother-son pairs are in the dataset?
+
+```{r}
+galton %>%
+    group_by(pair) %>%
+    summarise(n())
+```
+
+Same as the above but using count instead of group_by and summarise
+
+```{r}
+galton %>%
+    count(pair)
+```
+
+
+Q9
+
+Calculate the correlation coefficients for fathers and daughters, fathers and sons, mothers and daughters and mothers and sons.
+
+Which pair has the strongest correlation in heights?
+
+Which pair has the weakest correlation in heights?
+
+```{r}
+galton %>%
+    group_by(pair) %>%
+    summarise(r = cor(parentHeight, childHeight))
+```
+
+---
+
+
+Question 10 has two parts. The information here applies to both parts.
+
+Use lm() and the broom package to fit regression lines for each parent-child pair type. Compute the least squares estimates, standard errors, confidence intervals and p-values for the parentHeight coefficient for each pair.
+
+```{r}
+galton %>%
+    group_by(pair) %>%
+    do(tidy(lm(childHeight ~ parentHeight, data = .), conf.int = TRUE)) %>%
+    filter(term == "parentHeight")
+```
+
+
+Q10a
+
+What is the estimate of the father-daughter coefficient?
+
+For every 1-inch increase in mother's height, how many inches does the typical son's height increase?
+
+Q10b
+
+Which sets of parent-child heights are significantly correlated at a p-value cut off of .05?
+
+```{r}
+galton %>%
+    group_by(pair) %>%
+    do(tidy(lm(childHeight ~ parentHeight, data = .), conf.int = TRUE)) %>%
+    filter(term == "parentHeight") %>%
+    summarise(p.value < 0.05)
+```
+
+
+Which of the following statements are true?
+
+All of the confidence intervals overlap each other. 
+
+```{r}
+galton %>%
+    group_by(pair) %>%
+    do(tidy(lm(childHeight ~ parentHeight, data = .), conf.int = TRUE)) %>%
+    filter(term == "parentHeight") %>%
+    ggplot(aes(pair, y = estimate, ymin = conf.low, ymax = conf.high)) +
+    geom_errorbar() +
+    geom_point()
+```
+
+At least one confidence interval covers zero. 
+
+```{r}
+galton %>%
+    group_by(pair) %>%
+    do(tidy(lm(childHeight ~ parentHeight, data = .), conf.int = TRUE)) %>%
+    filter(term == "parentHeight") %>%
+    group_by(pair) %>%
+    summarise(conf.low < 0 && conf.high > 0)
+```
+
+The confidence intervals involving mothers' heights are larger than the confidence intervals involving fathers' heights.
+
+```{r}
+galton %>%
+    group_by(pair) %>%
+    do(tidy(lm(childHeight ~ parentHeight, data = .), conf.int = TRUE)) %>%
+    filter(term == "parentHeight") %>%
+    summarise(conf.high - conf.low)
+```
+
+
+Answer Q10b
+
+```{r}
+galton %>%
+    group_by(pair) %>%
+    do(tidy(lm(childHeight ~ parentHeight, data = .), conf.int = TRUE)) %>%
+    filter(term == "parentHeight" & p.value < .05)
+```
+
+All four of the confidence intervals overlap. The confidence intervals for mothers' heights are larger than those for fathers' heights, as observed from the standard errors. Because the confidence intervals overlap, the data are consistent with inheritance of height being independent of the child's or the parent's gender.
 
 ## Exercises 
 
@@ -886,7 +1052,7 @@ To make the per-game team rate comparable to the per-plate-appearance player rat
 ```{r}
 pa_per_game <- Batting %>% filter(yearID == 2002) %>% 
   group_by(teamID) %>%
-  summarize(pa_per_game = sum(AB+BB)/max(G)) %>% 
+  summarize(pa_per_game = sum(AB+BB)/max(G)) %>%
   pull(pa_per_game) %>% 
   mean
 ```
@@ -897,7 +1063,7 @@ We compute the per-plate-appearance rates for players available in 2002 on data 
 players <- Batting %>% filter(yearID %in% 1997:2001) %>% 
   group_by(playerID) %>%
   mutate(PA = BB + AB) %>%
-  summarize(G = sum(PA)/pa_per_game,
+  summarize(G = sum(PA)/pa_per_game, ## the sum of all the PA in the 1997-2001 period and divided by the mean PA for 2002 period so we know how many "complete" games a player has had during 1997-2001 period (with "refference" of the 2002 period)
     BB = sum(BB)/G,
     singles = sum(H-X2B-X3B-HR)/G,
     doubles = sum(X2B)/G, 
@@ -1240,6 +1406,97 @@ tidy(fit, conf.int = TRUE)
 
 The Tower of Pisa height is within the confidence interval for $\beta_0$, the initial velocity 0 is in the confidence interval for $\beta_1$ (note the p-value is larger than 0.05), and the acceleration constant is in a confidence interval for $-2 \times \beta_2$. 
 
+
+## Assessment:Case study: Moneyball (continued)
+
+Q3
+
+Imagine you have two teams. Team A is comprised of batters who, on average, get two bases on balls, four singles, one double, no triples, and one home run. Team B is comprised of batters who, on average, get one base on balls, six singles, two doubles, one triple, and no home runs.
+
+Which team scores more runs, as predicted by our model?
+
+
+```{r}
+fit <- Teams %>% 
+  filter(yearID %in% 1961:2001) %>% 
+  mutate(BB = BB / G, 
+         singles = (H - X2B - X3B - HR) / G, 
+         doubles = X2B / G, 
+         triples = X3B / G, 
+         HR = HR / G,
+         R = R / G) %>%  
+  lm(R ~ BB + singles + doubles + triples + HR, data = .)
+
+data.frame(playerID = c("teamA", "teamB"), BB = c(2, 1), singles = c(4, 6), doubles = c(1, 2), triples = c(0, 1), HR = c(1, 0)) %>%
+    mutate(r_hat = predict(fit, newdata = .))
+```
+
+---
+
+
+
+Question 9 has two parts. Use the information below to answer both parts.
+
+Use the Teams data frame from the Lahman package. Fit a multivariate linear regression model to obtain the effects of BB and HR on Runs (R) in 1971. Use the tidy() function in the broom package to obtain the results in a data frame.
+
+```{r}
+Teams %>%
+    filter(yearID %in% 1971) %>%
+    lm(R ~ BB + HR, data = .) %>%
+    tidy(x = ., conf.int = TRUE)
+```
+
+
+Q9a
+
+What is the estimate for the effect of BB on runs?
+
+What is the estimate for the effect of HR on runs?
+
+Q9b
+
+Interpret the p-values for the estimates using a cutoff of 0.05. Which of the following is the correct interpretation?
+
+HR has a significant effect on runs, but the evidence is not strong enough to suggest BB also does. 
+
+Q10
+
+Repeat the above exercise to find the effects of BB and HR on runs (R) for every year from 1961 to 2018 using do() and the broom package. Make a scatterplot of the estimate for the effect of BB on runs over time and add a trend line with confidence intervals.
+
+```{r}
+Teams %>%
+      filter(yearID %in% 1961:2018) %>%
+      group_by(yearID) %>%
+      do(tidy(lm(R ~ BB + HR, data = .))) %>%
+      filter(term == "BB") %>%
+    ggplot(aes(yearID, estimate)) +
+      geom_point() +
+      geom_smooth(method = "lm")
+```
+
+Fill in the blank to complete the statement:
+
+The effect of BB on runs has "increased" over time.
+
+Q11
+
+Fit a linear model on the results from Question 10 to determine the effect of year on the impact of BB.
+
+```{r}
+Teams %>%
+      filter(yearID %in% 1961:2018) %>%
+      group_by(yearID) %>%
+      do(tidy(lm(R ~ BB + HR, data = .))) %>%
+      filter(term == "BB") %>%
+      lm(estimate ~ yearID, data = .) %>%
+      tidy()
+```
+
+For each additional year, by what value does the impact of BB on runs change?
+
+What is the p-value for this effect?
+
+
 ## Exercises 
 
 Since the 1980s, sabermetricians have used a summary statistic different from batting average to evaluate players. They realized walks were important and that doubles, triples, and HRs, should be weighed more than singles. As a result, they proposed the following metric:
@@ -1271,4 +1528,303 @@ They called this on-base-percentage plus slugging percentage (OPS). Although the
 7\. We see that using the regression approach predicts runs slightly better than OPS, but not that much. However, note that we have been computing OPS and predicting runs for teams when these measures are used to evaluate players. Let's show that OPS is quite similar to what one obtains with regression at the player level. For the 1961 season and after, compute the OPS and the predicted runs from our model for each player and plot them. Use the PA per game correction we used in the previous chapter:
 
 8\. What players have show the largest difference between their rank by predicted runs and OPS?
+
+## Assesment: Linear models
+
+This assessment has 6 multi-part questions that will all use the setup below.
+
+Game attendance in baseball varies partly as a function of how well a team is playing.
+
+Load the Lahman library. The Teams data frame contains an attendance column. This is the total attendance for the season. To calculate average attendance, divide by the number of games played, as follows:
+
+
+```{r}
+library(tidyverse)
+library(broom)
+library(Lahman)
+Teams_small <- Teams %>% 
+    filter(yearID %in% 1961:2001) %>% 
+    mutate(avg_attendance = attendance/G)
+```
+
+
+Use linear models to answer the following 3-part question about Teams_small.
+
+Q1a
+
+Use runs (R) per game to predict average attendance.
+
+For every 1 run scored per game, average attendance increases by how much?
+
+```{r}
+Teams_small %>%
+  mutate(R = R/G) %>%
+  lm(avg_attendance ~ R, data = .) %>%
+  tidy()
+```
+
+Suggested answer
+
+```{r}
+# find regression line predicting attendance from R and take slope
+Teams_small %>% 
+  mutate(R_per_game = R/G) %>% 
+  lm(avg_attendance ~ R_per_game, data = .) %>% 
+  .$coef %>%
+  .[2]
+```
+
+
+Use home runs (HR) per game to predict average attendance.
+
+For every 1 home run hit per game, average attendance increases by how much?
+
+```{r}
+Teams_small %>%
+  mutate(HR = HR/G) %>%
+  lm(avg_attendance ~ HR, data = .) %>%
+  tidy()
+```
+
+```{r}
+Teams_small %>% 
+  mutate(HR_per_game = HR/G) %>% 
+  lm(avg_attendance ~ HR_per_game, data = .) %>% 
+  .$coef %>%
+  .[2]
+```
+
+Q1b
+
+Use number of wins to predict average attendance; do not normalize for number of games.
+
+For every game won in a season, how much does average attendance increase?
+
+```{r}
+fit <- Teams_small %>%
+  group_by(teamID, yearID) %>%
+  summarise(W = sum(W), avg_attendance = (mean(avg_attendance))) %>%
+  ungroup() %>%
+  lm(avg_attendance ~ W, data = .)
+
+tidy(fit)
+```
+
+Suggested answer
+
+```{r}
+Teams_small %>% 
+  lm(avg_attendance ~ W, data = .) %>%
+  .$coef %>%
+  .[2]
+```
+
+
+Suppose a team won zero games in a season.
+
+Predict the average attendance.
+
+```{r}
+data.frame(team = "A", W = c(0)) %>%
+  predict(fit, newdata = .)
+```
+
+Suggested answer
+
+```{r}
+Teams_small %>% 
+  lm(avg_attendance ~ W, data = .) %>% 
+  .$coef %>%
+  .[1]
+```
+
+Q1c
+
+Use year to predict average attendance.
+
+How much does average attendance increase each year?
+
+```{r}
+Teams_small %>%
+  lm(avg_attendance ~ yearID, data = .) %>%
+  tidy()
+```
+
+Suggested answer
+
+```{r}
+Teams_small %>% 
+  lm(avg_attendance ~ yearID, data = .) %>% 
+  .$coef %>%
+  .[2]
+```
+
+Q2
+
+Game wins, runs per game and home runs per game are positively correlated with attendance. We saw in the course material that runs per game and home runs per game are correlated with each other. Are wins and runs per game or wins and home runs per game correlated?
+
+What is the correlation coefficient for wins and runs per game?
+
+```{r}
+Teams %>%
+    filter(yearID %in% 1961:2001) %>%
+    mutate(R = R/G) %>%
+    summarise(cor(W, R))
+```
+
+Suggested answer
+
+```{r}
+cor(Teams_small$W, Teams_small$R/Teams_small$G)
+```
+
+What is the correlation coefficient for wins and home runs per game?
+
+```{r}
+Teams %>%
+    filter(yearID %in% 1961:2001) %>%
+    mutate(HR = HR/G) %>%
+    summarise(cor(W, HR))
+```
+
+Suggested answer
+
+```{r}
+cor(Teams_small$W, Teams_small$HR/Teams_small$G)
+```
+
+---
+
+Stratify Teams_small by wins: divide number of wins by 10 and then round to the nearest integer. Keep only strata 5 through 10, which have 20 or more data points. (The last part for the data points is not clear and for that reason it has not been included in the following code, nevertheless the result was accepted as correct.)
+
+
+```{r}
+Teams_small %>%
+    mutate(W_str = round(W/10, 0)) %>%
+    filter(W_str %in% 5:10)
+```
+
+
+Use the stratified dataset to answer this three-part question.
+
+Q3a
+
+How many observations are in the 8 win strata?
+
+```{r}
+Teams_small %>%
+    mutate(W_str = round(W/10, 0)) %>%
+    filter(W_str %in% 5:10) %>%
+    group_by(W_str) %>%
+    summarise(n())
+```
+
+Suggested answer
+
+```{r}
+dat <- Teams_small %>%
+    mutate(W_strata = round(W/10)) %>%
+    filter(W_strata >= 5 & W_strata <= 10)
+
+sum(dat$W_strata == 8)
+```
+
+Q3b
+
+Calculate the slope of the regression line predicting average attendance given runs per game for each of the win strata.
+Which win stratum has the largest regression line slope?
+
+```{r}
+Teams_small %>%
+    mutate(W_str = round(W/10, 0)) %>%
+    filter(W_str %in% 5:10) %>%
+    mutate(RpG = R/G) %>%
+    group_by(W_str) %>%
+    do(tidy(lm(avg_attendance ~ RpG, data = .))) %>%
+    filter(term == "RpG")
+```
+
+Suggested answer:
+
+```{r}
+# calculate slope of regression line after stratifying by R per game
+dat %>%  
+  group_by(W_strata) %>%
+  summarize(slope = cor(R/G, avg_attendance)*sd(avg_attendance)/sd(R/G))
+```
+
+
+Calculate the slope of the regression line predicting average attendance given HR per game for each of the win strata.
+Which win stratum has the largest regression line slope?
+
+```{r}
+Teams_small %>%
+    mutate(W_str = round(W/10, 0)) %>%
+    filter(W_str %in% 5:10) %>%
+    mutate(HRpG = HR/G) %>%
+    group_by(W_str) %>%
+    do(tidy(lm(avg_attendance ~ HRpG, data = .))) %>%
+    filter(term == "HRpG")
+```
+
+Suggested answer
+
+```{r}
+# calculate slope of regression line after stratifying by HR per game
+dat %>%  
+  group_by(W_strata) %>%
+  summarize(slope = cor(HR/G, avg_attendance)*sd(avg_attendance)/sd(HR/G))
+```
+
+
+Q4
+
+Fit a multivariate regression determining the effects of runs per game, home runs per game, wins, and year on average attendance. Use the original Teams_small wins column, not the win strata from question 3.
+
+```{r}
+Teams_small %>%
+    mutate(RpG = R/G, HRpG = HR/G) %>%
+    lm(avg_attendance ~ RpG + HRpG + W + yearID, data = .) %>%
+    tidy()
+```
+
+What is the estimate of the effect of runs per game on average attendance?
+
+What is the estimate of the effect of home runs per game on average attendance?
+
+What is the estimate of the effect of number of wins in a season on average attendance?
+
+Q5
+
+Use the multivariate regression model from Question 4. Suppose a team averaged 5 runs per game, 1.2 home runs per game, and won 80 games in a season.
+
+What would this team's average attendance be in 2002?
+
+What would this team's average attendance be in 1960?
+
+```{r}
+fit_ts <- Teams_small %>%
+    mutate(RpG = R/G, HRpG = HR/G) %>%
+    lm(avg_attendance ~ RpG + HRpG + W + yearID, data = .)
+
+data.frame(yearID = c(1960, 2002), RpG = c(5, 5), HRpG = c(1.2, 1.2), W = c(80, 80)) %>%
+    mutate(r_hat = predict(fit_ts, newdata = .))
+```
+
+Q6
+
+Use your model from Question 4 to predict average attendance for teams in 2002 in the original Teams data frame.
+What is the correlation between the predicted attendance and actual attendance?
+
+```{r}
+Teams %>%
+    filter(yearID == 2002) %>%
+    mutate(avg_attendance = attendance/G,
+            RpG = R/G,
+            HRpG = HR/G) %>%
+    filter(!is.na(attendance)) %>%
+    mutate(avg_attendance_hat = predict(fit_ts, newdata = .)) %>%
+    summarize(cor(avg_attendance, avg_attendance_hat))
+```
+
 

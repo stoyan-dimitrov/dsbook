@@ -114,6 +114,16 @@ cor(x[-23], y[-23])
 
 In Section \@ref(robust-summaries) we described alternatives to the average and standard deviation that are robust to outliers. There is also an alternative to the sample correlation for estimating the population correlation that is robust to outliers. It is called _Spearman correlation_. The idea is simple: compute the correlation on the ranks of the values. Here is a plot of the ranks plotted against each other:
 
+```{r}
+
+# a short reminder of what rank() function is
+
+data.frame(x, rank(x)) %>% arrange(x)
+
+data.frame(y, rank(y)) %>% arrange(y)
+```
+
+
 ```{r scatter-plot-of-ranks}
 qplot(rank(x), rank(y))
 ```
@@ -355,4 +365,123 @@ But, before we conclude this, we must check if these differences are any differe
 7\. For the medical sciences, there appears to be a statistically significant difference. But is this a spurious correlation? We performed 9 tests. Reporting only the one case with a p-value less than 0.05 might be considered an example of cherry picking. 
 Repeat the exercise above, but instead of a p-value, compute a log odds ratio divided by their standard error. Then use qq-plot to see how much these log odds ratios deviate from the normal distribution we would expect: a standard normal distribution.
 
-    
+## Assessment: Association is not causation
+
+```{r}
+library(dslabs)
+data("research_funding_rates")
+research_funding_rates
+```
+
+Q1
+
+Construct a two-by-two table of gender (men/women) by award status (awarded/not) using the total numbers across all disciplines.
+
+```{r}
+research_funding_rates %>%
+  summarise(y_m = sum(awards_men),
+            y_w = sum(awards_women),
+            n_m = sum(applications_men) - sum(awards_men),
+            n_w = sum(applications_women) - sum(awards_women)
+            ) %>%
+  gather %>%
+    separate(key, c("awarded", "gender")) %>%
+    spread(gender, value)
+```
+
+
+What is the number of men not awarded?
+
+What is the number of women not awarded?
+
+Q2
+
+Use the two-by-two table from Question 1 to compute the percentages of men awarded versus women awarded.
+
+```{r}
+research_funding_rates %>%
+  summarise(y_m = sum(awards_men),
+            y_w = sum(awards_women),
+            n_m = sum(applications_men) - sum(awards_men),
+            n_w = sum(applications_women) - sum(awards_women)
+            ) %>%
+  gather %>%
+    separate(key, c("awarded", "gender")) %>%
+    spread(awarded, value) %>%
+  mutate(percentage = y/(y+n)*100)
+```
+
+What is the percentage of men awarded?
+
+Suggested answer:
+
+```{r}
+two_by_two %>% 
+    mutate(men = round(men/sum(men)*100, 1), women = round(women/sum(women)*100, 1)) %>%
+    filter(awarded == "yes") %>%
+    pull(men)
+```
+
+What is the percentage of women awarded?
+
+Suggested answer:
+
+```{r}
+two_by_two %>% 
+    mutate(men = round(men/sum(men)*100, 1), women = round(women/sum(women)*100, 1)) %>%
+    filter(awarded == "yes") %>%
+    pull(women)
+```
+
+Q3
+
+Run a chi-squared test on the two-by-two table to determine whether the difference in the two success rates is significant. (You can use tidy() to turn the output of chisq.test() into a data frame as well.)
+
+```{r}
+research_funding_rates %>%
+  summarise(y_m = sum(awards_men),
+            y_w = sum(awards_women),
+            n_m = sum(applications_men) - sum(awards_men),
+            n_w = sum(applications_women) - sum(awards_women)
+            ) %>%
+  gather %>%
+    separate(key, c("awarded", "gender")) %>%
+    spread(gender, value) %>%
+  select(-awarded) %>%
+  chisq.test()
+```
+
+
+What is the p-value of the difference in funding rate?
+
+Q4
+
+There may be an association between gender and funding. But can we infer causation here? Is gender bias causing this observed difference? The response to the original paper claims that what we see here is similar to the UC Berkeley admissions example. Specifically they state that this "could be a prime example of Simpson’s paradox; if a higher percentage of women apply for grants in more competitive scientific disciplines, then an analysis across all disciplines could incorrectly show 'evidence' of gender inequality."
+
+To settle this dispute, use this dataset with number of applications, awards, and success rate for each gender:
+
+```{r}
+research_funding_rates %>% 
+      mutate(discipline = reorder(discipline, success_rates_total)) %>%
+      rename(success_total = success_rates_total,
+             success_men = success_rates_men,
+             success_women = success_rates_women) %>%
+      gather(key, value, -discipline) %>%
+      separate(key, c("type", "gender")) %>%
+      spread(type, value) %>%
+      filter(gender != "total") %>%
+  ggplot(aes(discipline, success, col = gender, size = applications)) +
+  geom_point()
+
+
+```
+
+Suggested answer:
+
+```{r}
+dat %>% 
+      ggplot(aes(discipline, success, size = applications, color = gender)) + 
+      theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+      geom_point()
+```
+
